@@ -42,6 +42,7 @@ def analyze_ipl_data(csv_path, output_path=None):
             venue,
             target_runs,
             target_overs,
+            season,
             SUM(total_runs) AS runs_in_over,
             SUM(is_wicket) AS wickets_in_over
         FROM 
@@ -86,8 +87,8 @@ def analyze_ipl_data(csv_path, output_path=None):
 
 if __name__ == "__main__":
     # Example usage
-    input_file = "../out.csv"
-    output_file = "../ipl_obo_summary.csv"
+    input_file = "./Datasets/out.csv"
+    output_file = "./Datasets/ipl_obo_summary.csv"
 
     # Run the analysis
     over_summary_df = analyze_ipl_data(input_file, output_file)

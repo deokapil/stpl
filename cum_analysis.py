@@ -16,6 +16,9 @@ def app():
     teams = conn.execute("SELECT DISTINCT batting_team FROM ipl_data ORDER BY batting_team").fetchall()
     teams = [row[0] for row in teams]
 
+    season = conn.execute("SELECT DISTINCT season FROM ipl_data ORDER BY season").fetchall()
+    seasons = [row[0] for row in season]
+
     overs_range = conn.execute("SELECT MIN(over), MAX(over) FROM ipl_data").fetchone()
 
     bowlers = conn.execute("SELECT DISTINCT bowler FROM ipl_data ORDER BY bowler").fetchall()
@@ -34,6 +37,7 @@ def app():
 
     # Bowler selection
     selected_bowlers = st.sidebar.multiselect("Select Bowlers", bowlers, default=None)
+    selected_seasons = st.sidebar.multiselect("Select Seasons", seasons, default=None)
 
     has_target = st.sidebar.checkbox("Filter by Target Runs")
     if has_target:
@@ -44,35 +48,59 @@ def app():
 
     where_clauses = []
     params = {}
+    param_count = 0
 
+    # Handle innings filter
     if selected_innings:
-        placeholders = ', '.join([f'{i}' for i in selected_innings])
-        where_clauses.append(f"inning IN ({placeholders})")
-        for i, inning in enumerate(selected_innings):
-            params[i] = inning
+        placeholders = []
+        for inning in selected_innings:
+            param_name = f"p{param_count}"
+            placeholders.append(f"${param_name}")
+            params[param_name] = inning
+            param_count += 1
+        where_clauses.append(f"inning IN ({', '.join(placeholders)})")
 
+    # Handle batting teams filter
     if selected_batting_teams:
-        start_idx = len(params)
-        placeholders = ', '.join([f'${i}' for i in range(start_idx, start_idx + len(selected_batting_teams))])
-        where_clauses.append(f"batting_team IN ({placeholders})")
-        for i, team in enumerate(selected_batting_teams, start=start_idx):
-            params[i] = team
+        placeholders = []
+        for team in selected_batting_teams:
+            param_name = f"p{param_count}"
+            placeholders.append(f"${param_name}")
+            params[param_name] = team
+            param_count += 1
+        where_clauses.append(f"batting_team IN ({', '.join(placeholders)})")
 
+    # Handle bowling teams filter
     if selected_bowling_teams:
-        start_idx = len(params)
-        placeholders = ', '.join([f'${i}' for i in range(start_idx, start_idx + len(selected_bowling_teams))])
-        where_clauses.append(f"bowling_team IN ({placeholders})")
-        for i, team in enumerate(selected_bowling_teams, start=start_idx):
-            params[i] = team
+        placeholders = []
+        for team in selected_bowling_teams:
+            param_name = f"p{param_count}"
+            placeholders.append(f"${param_name}")
+            params[param_name] = team
+            param_count += 1
+        where_clauses.append(f"bowling_team IN ({', '.join(placeholders)})")
 
+    # Handle bowlers filter
     if selected_bowlers:
-        start_idx = len(params)
-        placeholders = ', '.join([f'${i}' for i in range(start_idx, start_idx + len(selected_bowlers))])
-        where_clauses.append(f"bowler IN ({placeholders})")
-        for i, bowler in enumerate(selected_bowlers, start=start_idx):
-            params[i] = bowler
+        placeholders = []
+        for bowler in selected_bowlers:
+            param_name = f"p{param_count}"
+            placeholders.append(f"${param_name}")
+            params[param_name] = bowler
+            param_count += 1
+        where_clauses.append(f"bowler IN ({', '.join(placeholders)})")
+
+    if selected_seasons:
+        placeholders = []
+        for season in selected_seasons:
+            param_name = f"p{param_count}"
+            placeholders.append(f"${param_name}")
+            params[param_name] = season
+            param_count += 1
+        where_clauses.append(f"season IN ({', '.join(placeholders)})")
 
     where_clauses.append(f"over >= {selected_overs[0]} AND over <= {selected_overs[1]}")
+
 
     if has_target:
         where_clauses.append(
@@ -80,6 +108,7 @@ def app():
 
         # Construct the full WHERE clause
     where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
+    st.write(where_clauses)
 
     tab1, tab2, tab3, tab4 = st.tabs(["Runs Analysis", "Wickets Analysis", "Bowler Performance", "Match Progression"])
 
@@ -109,10 +138,10 @@ def app():
                 """
 
         # Execute the SQL queries
-        st.write(runs_stats_sql)
+        print(runs_stats_sql)
         st.write(params)
-        runs_stats = conn.execute(runs_stats_sql).fetchone()
-        runs_by_over = conn.execute(runs_by_over_sql).fetchdf()
+        runs_stats = conn.execute(runs_stats_sql, params).fetchone()
+        runs_by_over = conn.execute(runs_by_over_sql, params).fetchdf()
 
         # Get runs distribution data
         runs_distribution_sql = f"""
@@ -122,7 +151,7 @@ def app():
                 GROUP BY runs_in_over
                 ORDER BY runs_in_over
                 """
-        runs_distribution = conn.execute(runs_distribution_sql).fetchdf()
+        runs_distribution = conn.execute(runs_distribution_sql, params).fetchdf()
 
         # Display statistics
         st.subheader("Runs Statistics")
